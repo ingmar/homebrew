@@ -1,3 +1,5 @@
+require 'tempfile'
+
 # TODO make update cope if things are moved around
 # NOTE can't move main Formula so main formula can't be trumped
 #      rationale: would create so much merge hell for users!
@@ -28,12 +30,23 @@ module Homebrew extend self
     raise "Already tapped!" if tapd.directory?
     abort unless system "git clone https://github.com/#{user}/homebrew-#{repo} #{tapd}"
 
+    gitignores = (HOMEBREW_LIBRARY/"Formula/.gitignore").read.split
+
     cd HOMEBREW_LIBRARY/"Formula"
     tapd.find_formula do |relative_pathname|
       # using the system ln is the only way to get relative symlinks
       system "ln -s ../Taps/#{user}-#{repo}/#{relative_pathname} 2>/dev/null"
-      opoo "#{relative_pathname.basename(".rb")} conflicts" unless $?.success?
+      if $?.success?
+        gitignores << relative_pathname.basename.to_s
+      else
+        opoo "#{relative_pathname.basename, ".rb"} conflicts"
+      end
     end
+
+    tf = Tempfile.new("brew-tap")
+    tf.write(gitignores.uniq.join("\n"))
+    tf.close
+    mv tf.path, "#{HOMEBREW_PREFIX}/Library/Formula/.gitignore"
   end
 
   private
